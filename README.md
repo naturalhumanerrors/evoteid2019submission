@@ -1,32 +1,29 @@
-To compile this project, Ocaml version 4.04.0 was used. However,
-it is very possible that earlier version of OCaml can also work.
+## Requirements
 
-Then, one also need to write, in the file 'script.sh' the absolute path 
-to Tamarin (PATH), Maude (MAUDE) and Graphviz (GRAPHVIZ).
+- Linux
+- Ocaml version 4.04.0 or newer (older versions could also work)
+- tamarin-prover
+- Maude
+- Graphviz
 
-The project is compiled by using the command 'make' (if you compile 
-more than once, please use 'make clean' between usage of 'make'). Then,
-the tool can be used by launching the command:
-	./main.native file option
-where file has to be the name of a folder in which there is a folder 
-named 'Restriction' and a tamarin file named 'file.spthy'. If option is 
-'only', then the file 'file.spthy' will be parsed and a file named 
-Facts_and_strings is created where all the action label and strings 
-appearing in that file are listed. If not, the whole procedure is 
-launched to find a set of restriction(s) that ensures that every lemma 
-is verified.
+## Setup
 
-In that case, every restriction is stored in the file 
-'All_restrictions_.spthy'. All the generated set of restriction(s) on 
-which Tamarin will be launched can be found in the folder Restriction, 
-where there will also be some files for the results of the different 
-calls of Tamarin. The result is stored in the file 'WhichRestriction'.
+- Replace the absolute paths to the required tools (Tamarin, Maude and Graphviz) in the file 'script.sh'
+- Compile using 'make' command (if you need to compile more than once, you need to use 'make clean' before using 'make')
 
-For instance, to launch the tool on the simple voting protocol, use:
-	./main.native SimpleProtocol compute
-If you use it on with SimpleSelene, you won't get any result with option 
-different from 'only', since Tamarin takes too much time to get a result 
-on that file.
+## Usage
+
+Run using './main.native [file] [option]', where:
+- file: name of the folder containing tamarin specification file named 'file.spthy' and a folder named 'Restrictions'
+- option: 'only' or 'compute'. 
+   - If option 'only' is specified, then the file 'file.spthy' will be parsed and a file named 'Facts_and_strings' will be created, containing all the action labels and strings appearing in the specification file. 
+   - If option 'compute' is specified, then the whole procedure is launched to find a set of restriction(s) that ensures that every lemma is verified. In that case, every restriction is stored in the file 'All_restrictions_.spthy'. All the generated set of restriction(s) on which Tamarin will be launched can be found in the folder Restriction, where there will also be some files for the results of the different calls of Tamarin. The result is stored in the file 'WhichRestriction'.
+
+### Example
+
+./main.native SimpleProtocol compute
+
+## Additional information
 
 To change the strings that appear in the different restrictions, please 
 take a look at the file 'generate_restrictions.ml', line 11-14. 
