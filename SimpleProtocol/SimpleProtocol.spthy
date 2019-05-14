@@ -1,0 +1,143 @@
+theory VotingProtocol
+begin
+
+builtins: multiset, symmetric-encryption
+
+
+rule H_fresh:
+  [ Fr(~x) ]
+  --[ H($H), Learn($H,$x.1, ~x) ]->
+  [ !HK($H, $x.1, ~x) ]
+
+
+rule H_send_1:
+  [ !HK($H, $x.1, x.2) ]
+  --[ Send($H, $x.1, x.2), H($H) ]->
+  [ Out(< $x.1, x.2 >) ]
+
+rule H_receive_1:
+  [ In(< $x.1, x.2 >) ]
+  --[ Receive($H, $x.1, x.2 ), Learn($H,$x.1, x.2), H($H) ]->
+  [ !HK($H, $x.1, x.2) ]
+
+rule readTable:
+  [ In(<'key', t>), !Table(t,s) ]
+  --[ Receive($H,'key',t), H($H), Learn($H,'secret',s) ]->
+  [ !HK($H,'secret',s) ]
+
+
+rule H_send_S:
+  [ !HK($H, $x.1, x.2) ]
+  --[ Send($H, $x.1, x.2), H($H), To($H) ]->
+  [ !Broadcast($H, $x.1, x.2) ]
+
+rule H_receive_S:
+  [ !Broadcast($H, $x.1, x.2) ]
+  --[ Receive($H, $x.1, x.2), Learn($H,$x.1, x.2), H($H), From($H), Forbidden() ]->
+  [ !HK($H, $x.1, x.2) ]
+
+rule readTable_S:
+  [ !Broadcast($H, 'key', t), !Table(t,s) ]
+  --[ Receive($H,'key',t), H($H), From($H), Learn($H,'secret',s) ]->
+  [ !HK($H,'secret',s) ]
+
+rule SetupGenerateSecret:
+ let
+    cA = 'candA'
+    cB = 'candB'
+ in
+ [ Fr(~s1A), Fr(~s1B),
+   Fr(~s2A), Fr(~s2B),
+   Fr(~id1), Fr(~id2),
+   Fr(~tA), Fr(~tB) ]
+ --[ OnlyOnce(), Vote1('v1',cA), Vote2('v2',cB),
+     Secret(~s1A), Secret(~s1B),
+     Secret(~s2A), Secret(~s2B),
+     Learn($H,'vote',cA), From($H),
+     Associate(~tA,~s1A,cA),
+     Associate(~tB,~s1B,cB)  ]->
+ [ !InitK($H,'vote',cA),
+   !HK($H,'vote',cA),
+
+   !Table(~tA,~s1A), 
+   !Table(~tB,~s1B),
+
+   S1(~id1,cA,~tA), S1(~id1,cB,~tB),
+   S2(~id2,cA,~s2A), S2(~id2,cB,~s2B),
+
+   Out(senc(<'v1',cA>,~s1A)), Out(senc(<'v1',cB>,~s1B)),
+   Out(senc(<'v2',cA>,~s2A)), Out(senc(<'v2',cB>,~s2B)),
+
+   !PublishVote(senc(<'v1',cA>,~s1A)), !PublishVote(senc(<'v1',cB>,~s1B)),
+   !PublishVote(senc(<'v2',cA>,~s2A)), !PublishVote(senc(<'v2',cB>,~s2B)),
+
+   SendVote($H,'vote',cB) ]
+
+rule V_Vote1:
+  [ !InitK($H,'vote',vote) ]
+  --[ H_role($H) ]->
+  [ !Broadcast($H,'vote',vote) ]
+
+rule outputVote:
+  let
+    m = senc(<i2,vote2>,s2)
+  in
+  [ !Broadcast($H,'vote',vote1), 
+    SendVote($H,'vote',vote2),
+    S1(id1,vote1,t1), 
+    S2(id2,vote2,s2),
+    !PublishVote(m) ]
+
+  --[ TwoVotes(vote1,vote2), Checked(sdec(m,s2)), Key(t1) ]->
+
+  [ Out(<vote1,id1> + <vote2,id2>),
+    Out(<'key',t1>) ]
+
+rule V_getNi1:
+  [ In(<'key',t>), !Table(t,s) ]
+  --[ H_role($H) ]->
+  [ !Broadcast($H,'secret',s) ]
+  
+rule verifVote:
+  [ !PublishVote(senc(<v,c>,s)),
+    !Broadcast($H,'secret',s) ]
+  --[ Verified(sdec(senc(<v,c>,s),s)) ]->
+  [  ]
+
+restriction onlyOnce:
+  " All #i #j. OnlyOnce()@i & OnlyOnce()@j ==> #i = #j"
+
+restriction forbid:  
+    "not (Ex #k. Forbidden() @k)" 
+
+lemma Verifiability:
+  " All #i v c. Verified(<v,c>)@i ==> (Ex #j. Vote1(v,c) @j & j < i) "
+
+
+lemma Checkability:
+  " All #i v c. Checked(<v,c>)@i ==> (Ex #j. Vote2(v,c) @j & j < i) "
+
+lemma Executionability:
+  exists-trace
+  " Ex #i #j v1 c1 v2 c2. Checked(<v1,c1>)@i & Verified(<v2,c2>)@j & not(v1=v2) & 
+  (Ex #i vote1 vote2. TwoVotes(vote1,vote2) @i & not (vote1 = vote2))"
+
+lemma ballotSecrecy:
+  " All s #i. Secret(s) @i ==> not (Ex #j. K(s) @j)"
+
+#ifdef infallible
+restriction only_infallible_humans:
+  "not (Ex H #k. H(H) @ k)"
+#endif
+
+#ifdef untrained
+restriction only_fallible_humansU:  
+    "not (Ex H #k. H_role(H) @k)"
+#endif
+
+#ifdef restrictionBased
+restriction only_fallible_humansRB:  
+    "not (Ex H #k. H_role(H) @k)" 
+#endif
+
+end
