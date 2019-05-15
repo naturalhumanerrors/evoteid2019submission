@@ -9,6 +9,7 @@
 ## Setup
 
 - Replace the absolute paths to the required tools (Tamarin, Maude and Graphviz) in the file 'script.sh'
+- Add execution rights to the file 'script.sh': 'chmod +x script.sh'
 - Compile using 'make' command (if you need to compile more than once, you need to use 'make clean' before using 'make')
 
 ## Usage
