@@ -14,7 +14,7 @@
 ## Usage
 
 Run using './main.native [file] [option]', where:
-- file: name of the folder containing tamarin specification file named 'file.spthy' and a folder named 'Restrictions'
+- file: name of the folder containing tamarin specification file named 'file.spthy' and a folder named 'Restriction'
 - option: 'only' or 'compute'. 
    - If option 'only' is specified, then the file 'file.spthy' will be parsed and a file named 'Facts_and_strings' will be created, containing all the action labels and strings appearing in the specification file. 
    - If option 'compute' is specified, then the whole procedure is launched to find a set of restriction(s) that ensures that every lemma is verified. In that case, every restriction is stored in the file 'All_restrictions_.spthy'. All the generated set of restriction(s) on which Tamarin will be launched can be found in the folder Restriction, where there will also be some files for the results of the different calls of Tamarin. The result is stored in the file 'WhichRestriction'.
