@@ -1,4 +1,4 @@
-theory MySelene
+theory SimpleSelene
 begin
 
 builtins: multiset
@@ -7,6 +7,31 @@ functions: pk/1,
            open/3, commit/3, fake/4
 
 equations: open(commit(ni1, r, pk(sk)), r, sk) = ni1
+
+rule H_fresh:
+  [ Fr(~x) ]
+  --[ H($H), !HK($H,$x.1, ~x) ]->
+  [ !HK($H, $x.1, ~x) ]
+
+rule H_send:
+  [ !HK($H, $x.1, x.2) ]
+  --[ Send($H, $x.1, x.2),  H($H) ]->
+  [ Out(< $x.1, x.2 >) ]
+
+rule H_receive:
+  [ In(< $x.1, x.2 >) ]
+  --[ Receive($H, $x.1, x.2 ), !HK($H, $x.1, x.2), H($H) ]->
+  [ !HK($H, $x.1, x.2) ]
+
+rule H_send_S2:
+  [ !HK($H, $x.1, x.2), !HK($H, $y.1, y.2) ]
+  --[ Send($H, $x.1, x.2), Send($H, $y.1, y.2), H($H), To($H) ]->
+  [ !Broadcast($H,  < $x.1, $y.1 >, < x.2, y.2 >) ]
+
+rule H_receive_S2:
+  [ !Broadcast($H, < $x.1, $y.1 >, < x.2, y.2 >) ]
+  --[ Receive($H, $x.1, x.2), Receive($H, $y.1, y.2), !HK($H, $x.1, x.2), !HK($H, $y.1, y.2), H($H), From($H) ]->
+  [ !HK($H, $x.1, x.2), !HK($H, $y.1, y.2) ]
 
 rule Setup_EA_T1:
  let
@@ -23,81 +48,82 @@ rule Setup_EA_T1:
  --[ OnlyOnce(), Vote(~ltkV1,vote1), Vote(~ltkV2,vote2) ]->
  [ Out(pkV1), Out(pkV2), Out(pk(~ltkT)),
 
-   !InitK1($H,'vote',vote1),
-   !InitK1($H,'ltk',~ltkV1),
-   !InitK1($H,'pk',pkV1),
-   !HK1($H,'vote',vote1),
-   !HK1($H,'ltk',~ltkV1),
-   !HK1($H,'pk',pkV1),
+   !InitK($H,'vote',vote1),
+   !InitK($H,'ltk',~ltkV1),
+   !InitK($H,'pk',pkV1),
+   !HK($H,'vote',vote1),
+   !HK($H,'ltk',~ltkV1),
+   !HK($H,'pk',pkV1),
 
-   !InitK2($H,'vote',vote2),
-   !InitK2($H,'ltk',~ltkV2),
-   !InitK2($H,'pk',pkV2),
-   !HK2($H,'vote',vote2),
-   !HK2($H,'ltk',~ltkV2),
-   !HK2($H,'pk',pkV2),
+   Associate($H,<'pk','ltk'>,<pkV2,~ltkV2>),
 
    !Shuffle_trackers(<~ni1, pkV1>  + <~ni2, pkV2>), Out(~ni1 + ~ni2),
    
    Out(<pkV1, cmt1>),
    Out(<pkV2, cmt2>),
-   Out_S($H,<'commitment','pk'>,<cmt1, pkV1>),
-   Out_S($H,<'commitment','pk'>,<cmt2, pkV2>),
+   !Broadcast($H,<'commitment','pk'>,<cmt1, pkV1>),
+   SendCommitment($H,<'commitment','pk'>,<cmt2, pkV2>),
 
-   Fact($H,<'commitment','pk'>,<cmt1, pkV1>),
+   Votes($H,<'vote','pk'>,<vote2,pkV2>),
 
    St_T_1(~ltkT, pkV1, ~rnd1, ~ni1, cmt1),
    St_T_1(~ltkT, pkV2, ~rnd2, ~ni2, cmt2) ]
 
 // Voting
 rule V_Vote1:
-  [ !InitK1($H,'vote',vote), !InitK1($H,'pk',pkV) ]
-  --[ H_role($H,'1'), Send($H, 'vote', vote), Send($H, 'pk', pkV), To() ]->
-  [ Out_S($H,<'vote','pk'>,<vote,pkV>) ]
-
-rule V_Vote2:
-  [ !InitK2($H,'vote',vote), !InitK2($H,'pk',pkV) ]
-  --[ H_role($H,'2'), Send($H, 'vote', vote), Send($H, 'pk', pkV), To() ]->
-  [ Out_S($H,<'vote','pk'>,<vote,pkV>) ]
+  [ !InitK($H,'vote',vote), !InitK($H,'pk',pkV) ]
+  --[ H_role($H,'1'), Send($H, 'vote', vote), Send($H, 'pk', pkV), To($H) ]->
+  [ !Broadcast($H,<'vote','pk'>,<vote,pkV>) ]
 
 // Teller receives and posts vote
 // Synchronize tellers and shuffle votes
 rule T2_T2_sync:
-  [ In_S($H,<'vote','pk'>,<vote1,pkV1>),
-    In_S($H,<'vote','pk'>,<vote2,pkV2>),
+  [ !Broadcast($H,<'vote','pk'>,<vote1,pkV1>),
+    Votes($H,<'vote','pk'>,<vote2,pkV2>),
     St_T_1(~ltkT, pkV1, rnd1, ni1, cmt1),
     St_T_1(~ltkT, pkV2, rnd2, ni2, cmt2) ]
+
   --[ TwoVotes(vote1,vote2) ]->
+
   [ SendBiToVoter(rnd1), SendBiToVoter(rnd2), 
     !PublishVote(<ni1, vote1> + <ni2, vote2>),
     Out(<ni1, vote1> + <ni2, vote2>) ]
 
 // Voter checks vote
 rule V_getNi1:
-  [ In_S($H,<'commitment','pk'>,<cmt,pkV>),
-    !InitK1($H,'pk',pkV), !InitK1($H,'ltk',~ltkV)
+  [ !Broadcast($H,<'commitment','pk'>,<cmt,pkV>),
+    !InitK($H,'pk',pkV), !InitK($H,'ltk',~ltkV)
   ]
-  --[ H_role($H,'1'), Receive($H, 'pk', pkV), Receive($H, 'commitment', cmt), From(),
-  Send($H, 'ltk', ~ltkV), Send($H, 'commitment', cmt), To() ]->
-  [ Out_S($H,<'ltk','commitment'>,<~ltkV,cmt>) ]
+  --[ H_role($H,'1'), Receive($H, 'pk', pkV), Receive($H, 'commitment', cmt), From($H), Send($H, 'ltk', ~ltkV), Send($H, 'commitment', cmt), To($H) ]->
+  [ !Broadcast($H,<'ltk','commitment'>,<~ltkV,cmt>) ]
 
 rule V_getNi2:
-  [ In_S($H,<'commitment','pk'>,<cmt,pkV>),
-    !InitK2($H,'pk',pkV), !InitK2($H,'ltk',~ltkV)
+  [ SendCommitment($H,<'commitment','pk'>,<cmt,pkV>),
+  	Associate($H,<'pk','ltk'>,<pkV,~ltkV>)
   ]
-  --[ H_role($H,'2'), Receive($H, 'pk', pkV), Receive($H, 'commitment', cmt), From(),
-  Send($H, 'ltk', ~ltkV), Send($H, 'commitment', cmt), To() ]->
-  [ Out_S($H,<'ltk','commitment'>,<~ltkV,cmt>) ]
+  -->
+  [ LtkCommit($H,<'ltk','commitment'>,<~ltkV,cmt>) ]
 
-rule publishVote:
+rule publishVote1:
   let
     ni = open(cmt, bi, ~ltkV)
   in
   [ SendBiToVoter(bi),
-    In_S($H,<'ltk','commitment'>,<~ltkV,cmt>),
+    !Broadcast($H,<'ltk','commitment'>,<~ltkV,cmt>),
     !PublishVote(<ni, vote> + y)
      ]
-  --[ Executed(<~ltkV,vote>) ]->
+  --[ Verified(<~ltkV,vote>) ]->
+  [  ]
+
+rule publishVote2:
+  let
+    ni = open(cmt, bi, ~ltkV)
+  in
+  [ SendBiToVoter(bi),
+    LtkCommit($H,<'ltk','commitment'>,<~ltkV,cmt>),
+    !PublishVote(<ni, vote> + y)
+     ]
+  --[ Checked(<~ltkV,vote>) ]->
   [  ]
 
 restriction onlyOnce:
@@ -106,69 +132,26 @@ restriction onlyOnce:
 restriction two_votes:
   " All #i vote1 vote2. TwoVotes(vote1,vote2) @i ==> not (vote1 = vote2) "
 
-
 lemma verif:
-  " All #i l vote. Executed(<l,vote>)@i ==> (Ex #j. Vote(l,vote) @j & j < i)"
+  " All #i l vote. Verified(<l,vote>)@i ==> (Ex #j. Vote(l,vote) @j & j < i)"
+
+lemma check:
+  " All #i l vote. Checked(<l,vote>)@i ==> (Ex #j. Vote(l,vote) @j & j < i)"
 
 lemma exec:
   exists-trace
-  " Ex #i #j l1 l2 vote1 vote2. Executed(<l1,vote1>)@i & Executed(<l2,vote2>)@j & not(vote1=vote2)"
+  " Ex #i #j v1 l1 v2 l2. Verified(<l1,v1>)@i & Checked(<l2,v2>)@j "
 
 
 #ifdef infallible
 restriction only_infallible_humans:
-  "not (Ex Hu #k. H(Hu) @k)"
+  "not (Ex H #k. H(H) @k)"
 #endif
 
 #ifdef untrained
 restriction only_fallible_humansRB:  
-    "(not (Ex H #k. H_role(H,'1') @k))" 
+    "(not (Ex H x #k. H_role(H,x) @k))" 
 #endif
-
-
-rule H_fresh:
-  [ Fr(~x) ]
-  --[ H($H), !HK($H,$x.1, ~x) ]->
-  [ !HK1($H, $x.1, ~x) ]
-
-rule H_send:
-  [ !HK1($H, $x.1, x.2) ]
-  --[ Send($H, $x.1, x.2),  H($H) ]->
-  [ Out(< $x.1, x.2 >) ]
-
-rule H_receive:
-  [ In(< $x.1, x.2 >) ]
-  --[ Receive($H, $x.1, x.2 ), !HK($H, $x.1, x.2), H($H) ]->
-  [ !HK1($H, $x.1, x.2) ]
-
-rule H_send_S2:
-  [ !HK1($H, $x.1, x.2), !HK1($H, $y.1, y.2) ]
-  --[ Send($H, $x.1, x.2), Send($H, $y.1, y.2), H($H), To() ]->
-  [ Out_S($H,  < $x.1, $y.1 >, < x.2, y.2 >) ]
-
-rule H_receive_S2:
-  [ In_S($H, < $x.1, $y.1 >, < x.2, y.2 >) ]
-  --[ Receive($H, $x.1, x.2), Receive($H, $y.1, y.2), !HK($H, $x.1, x.2), !HK($H, $y.1, y.2), H($H), From() ]->
-  [ !HK1($H, $x.1, x.2), !HK1($H, $y.1, y.2) ]
-
-rule ChanOut_S:
-	[Out_S($A,xn,x)]
-	--[ChanOut_S($A,xn,x)]->
-	[!Sec($A,xn,x)]
-
-rule ChanIn_S:
-	[!Sec($A,xn,x)]
-	--[ChanIn_S($A,xn,x)]->
-	[In_S($A,xn,x)]
-
-
-
-
-
-
-
-
-
 
 
 end
